@@ -48,3 +48,8 @@ Big thanks to [Pixel1011](https://github.com/Pixel1011) for making
 the controller. Go check out their
 [SteamHapticsPlayer](https://github.com/Pixel1011/SteamHapticsPlayer) too. It
 plays audio files through the haptics and kicked off this whole idea.
+
+## License
+
+Licensed under the Apache License 2.0. See `LICENSE` for the full terms and
+`NOTICE` for third-party attributions.
