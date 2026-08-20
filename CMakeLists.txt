@@ -10,6 +10,11 @@ find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
 pkg_check_modules(SAMPLERATE REQUIRED IMPORTED_TARGET samplerate)
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  message(FATAL_ERROR "This first milestone implements the Linux PipeWire backend only")
+endif()
+pkg_check_modules(PIPEWIRE REQUIRED IMPORTED_TARGET libpipewire-0.3)
+
 function(sho_warnings target)
   target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 endfunction()
@@ -18,6 +23,11 @@ add_library(sho-core STATIC src/Core.cpp)
 target_include_directories(sho-core PUBLIC include)
 target_link_libraries(sho-core PUBLIC PkgConfig::SAMPLERATE Threads::Threads)
 sho_warnings(sho-core)
+
+add_library(sho-platform-pipewire STATIC src/PipeWireCapture.cpp)
+target_include_directories(sho-platform-pipewire PUBLIC include)
+target_link_libraries(sho-platform-pipewire PUBLIC sho-core PRIVATE PkgConfig::PIPEWIRE)
+sho_warnings(sho-platform-pipewire)
 
 if(BUILD_TESTING)
   add_executable(sho-tests tests/tests.cpp)
