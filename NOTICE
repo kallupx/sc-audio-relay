@@ -1,0 +1,10 @@
+SC Audio Relay uses TritonLib at commit
+d470e0d3bb6309505a201561278b72d1a9dc16f2.
+
+TritonLib copyright 2026 Pixel1001 and includes portions derived from
+SteamHapticsSinger and SDL. Its upstream notices are preserved verbatim in
+LICENSES/TritonLib.txt.
+
+PipeWire, libsamplerate, and hidapi are dynamically linked system libraries.
+Their licenses are distributed by the operating-system packages that provide
+them.

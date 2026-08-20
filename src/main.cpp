@@ -29,7 +29,7 @@ struct Options {
 };
 
 constexpr std::string_view usage =
-    "Usage: steam-haptics-output [--mirror-default | --mirror-device NAME]\n"
+    "Usage: sc-audio-relay [--mirror-default | --mirror-device NAME]\n"
     "                            [--gain 0..4] [--controller auto|wired|wireless]\n"
     "                            [--stats | --no-stats]\n";
 
@@ -149,12 +149,12 @@ int main(int argc, char** argv) {
     streamer.stop();
     controller.disable();
     if (capture.failed()) {
-      std::cerr << "steam-haptics-output: PipeWire stream disconnected\n";
+      std::cerr << "sc-audio-relay: PipeWire stream disconnected\n";
       return 1;
     }
     return controller.connected() ? 0 : 1;
   } catch (const std::exception& error) {
-    std::cerr << "steam-haptics-output: " << error.what() << '\n' << usage;
+    std::cerr << "sc-audio-relay: " << error.what() << '\n' << usage;
     return 1;
   }
 }

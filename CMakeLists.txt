@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(SteamHapticsOutput VERSION 0.1.0 LANGUAGES CXX)
+project(SCAudioRelay VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,9 +51,9 @@ target_include_directories(sho-platform-pipewire PUBLIC include)
 target_link_libraries(sho-platform-pipewire PUBLIC sho-core PRIVATE PkgConfig::PIPEWIRE)
 sho_warnings(sho-platform-pipewire)
 
-add_executable(steam-haptics-output src/main.cpp)
-target_link_libraries(steam-haptics-output PRIVATE sho-controller-triton sho-platform-pipewire)
-sho_warnings(steam-haptics-output)
+add_executable(sc-audio-relay src/main.cpp)
+target_link_libraries(sc-audio-relay PRIVATE sho-controller-triton sho-platform-pipewire)
+sho_warnings(sc-audio-relay)
 
 if(BUILD_TESTING)
   add_executable(sho-tests tests/tests.cpp)

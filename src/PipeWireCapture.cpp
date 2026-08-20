@@ -107,7 +107,7 @@ struct PipeWireCapture::Impl {
     pw_properties* properties = pw_properties_new(
         PW_KEY_MEDIA_TYPE, "Audio", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE,
         "Accessibility", PW_KEY_STREAM_CAPTURE_SINK, "true", PW_KEY_NODE_NAME,
-        "steam-haptics-output", nullptr);
+        "sc-audio-relay", nullptr);
     if (properties == nullptr) {
       throw std::runtime_error("PipeWire: could not allocate stream properties");
     }
@@ -127,7 +127,7 @@ struct PipeWireCapture::Impl {
                                               nullptr,
                                               nullptr,
                                               nullptr};
-    stream = pw_stream_new_simple(pw_main_loop_get_loop(loop), "Steam Controller Haptics Mirror",
+    stream = pw_stream_new_simple(pw_main_loop_get_loop(loop), "SC Audio Relay",
                                   properties, &events, this);
     if (stream == nullptr) {
       throw std::runtime_error("PipeWire: could not create capture stream");
