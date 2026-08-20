@@ -60,4 +60,10 @@ if(BUILD_TESTING)
   target_link_libraries(sho-tests PRIVATE sho-core)
   sho_warnings(sho-tests)
   add_test(NAME sho-tests COMMAND sho-tests)
+
+  add_test(
+    NAME sho-cli-source-conflict
+    COMMAND sh -c
+            "output=\"$('${CMAKE_CURRENT_BINARY_DIR}/sc-audio-relay' --virtual-output --mirror-default 2>&1)\"; status=$?; test $status -ne 0 && case \"$output\" in *\"choose only one audio source\"*) exit 0;; esac; printf '%s\\n' \"$output\"; exit 1"
+  )
 endif()

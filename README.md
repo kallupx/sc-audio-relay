@@ -26,6 +26,15 @@ sudo install -Dm755 build/sc-audio-relay /usr/local/bin/sc-audio-relay
 Connect the controller, play some music, then:
 
 ```bash
+sc-audio-relay --virtual-output --gain 0.5
+```
+
+Pick **Steam Controller Haptics** as the app's output. It exists while SC Audio
+Relay is running and sends audio to the controller, not your speakers.
+
+Or mirror your current output:
+
+```bash
 sc-audio-relay --mirror-default --gain 0.5
 ```
 

@@ -7,9 +7,12 @@
 
 namespace sho {
 
+enum class PipeWireMode { Mirror, VirtualOutput };
+
 class PipeWireCapture final : public IAudioCaptureSource {
 public:
-  PipeWireCapture(CaptureRing& output, StreamStatistics& stats, std::string target = {});
+  PipeWireCapture(CaptureRing& output, StreamStatistics& stats, PipeWireMode mode,
+                  std::string target = {});
   ~PipeWireCapture() override;
   void start() override;
   void stop() noexcept override;

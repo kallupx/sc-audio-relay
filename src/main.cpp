@@ -22,6 +22,7 @@ void handleSignal(int) { stopping = 1; }
 
 struct Options {
   std::string device;
+  sho::PipeWireMode pipeWireMode{sho::PipeWireMode::Mirror};
   sho::ControllerPreference controller{sho::ControllerPreference::Auto};
   float gain{0.5F};
   bool stats{true};
@@ -29,7 +30,7 @@ struct Options {
 };
 
 constexpr std::string_view usage =
-    "Usage: sc-audio-relay [--mirror-default | --mirror-device NAME]\n"
+    "Usage: sc-audio-relay [--mirror-default | --mirror-device NAME | --virtual-output]\n"
     "                            [--gain 0..4] [--controller auto|wired|wireless]\n"
     "                            [--stats | --no-stats]\n";
 
@@ -49,12 +50,12 @@ Options parseArgs(int argc, char** argv) {
       options.help = true;
     } else if (arg == "--mirror-default") {
       if (sourceChosen) {
-        throw std::runtime_error("choose only one mirror source");
+        throw std::runtime_error("choose only one audio source");
       }
       sourceChosen = true;
     } else if (arg == "--mirror-device") {
       if (sourceChosen) {
-        throw std::runtime_error("choose only one mirror source");
+        throw std::runtime_error("choose only one audio source");
       }
       options.device = nextValue(index, argc, argv, arg);
       if (options.device.empty()) {
@@ -84,7 +85,11 @@ Options parseArgs(int argc, char** argv) {
     } else if (arg == "--no-stats") {
       options.stats = false;
     } else if (arg == "--virtual-output") {
-      throw std::runtime_error("Linux virtual output is not implemented in this milestone");
+      if (sourceChosen) {
+        throw std::runtime_error("choose only one audio source");
+      }
+      options.pipeWireMode = sho::PipeWireMode::VirtualOutput;
+      sourceChosen = true;
     } else {
       throw std::runtime_error("unknown option: " + std::string{arg});
     }
@@ -96,6 +101,7 @@ Options parseArgs(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   try {
+    std::cout << std::unitbuf;
     const auto options = parseArgs(argc, argv);
     if (options.help) {
       std::cout << usage;
@@ -115,16 +121,22 @@ int main(int argc, char** argv) {
     }
 
     sho::AudioPipeline pipeline(capturedAudio, controllerAudio, stats, options.gain);
-    sho::PipeWireCapture capture(capturedAudio, stats, options.device);
+    sho::PipeWireCapture capture(capturedAudio, stats, options.pipeWireMode, options.device);
     sho::ControllerStreamer streamer(controllerAudio, controller, link, stats);
     pipeline.start();
     capture.start();
     streamer.start();
 
-    std::cout << "Streaming the " << (options.device.empty() ? "default output" : options.device)
+    std::cout << "Streaming "
+              << (options.pipeWireMode == sho::PipeWireMode::VirtualOutput
+                      ? "Steam Controller Haptics"
+                      : options.device.empty() ? "the default output" : options.device)
               << " to the "
               << (link == sho::ControllerLink::Wired16Bit ? "wired" : "wireless")
-              << " controller; press Ctrl+C to stop.\n";
+              << " controller; "
+              << (options.pipeWireMode == sho::PipeWireMode::VirtualOutput
+                      ? "route an app to it, then press Ctrl+C to stop.\n"
+                      : "press Ctrl+C to stop.\n");
 
     std::uint64_t previousCaptured = 0;
     std::uint64_t previousResampled = 0;
