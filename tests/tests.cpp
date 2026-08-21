@@ -4,6 +4,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cmath>
 #include <iostream>
@@ -111,6 +112,34 @@ void resamplerTest() {
   check(resampler.inputSpace() == 2048, "resampler reset clears pending input");
 }
 
+class FakeController final : public sho::IControllerTransport {
+public:
+  bool configure(sho::ControllerLink) override { return true; }
+  bool send(const sho::ControllerPcmPacket&) override { return true; }
+  bool connected() const noexcept override { return true; }
+  void disable() noexcept override {}
+};
+
+void underrunTest() {
+  const auto runEmptyStreamer = [](std::uint64_t capturedFrames) {
+    sho::OutputRing audio;
+    sho::StreamStatistics stats;
+    stats.capturedFrames.store(capturedFrames);
+    FakeController controller;
+    sho::ControllerStreamer streamer(audio, controller, sho::ControllerLink::Wired16Bit, stats);
+    streamer.start();
+    for (int wait = 0; wait < 100 && stats.sentPackets.load() < 4; ++wait) {
+      std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    streamer.stop();
+    check(stats.sentPackets.load() >= 4, "controller streamer ran");
+    return stats.underrunPackets.load();
+  };
+
+  check(runEmptyStreamer(0) == 0, "idle silence is not an underrun");
+  check(runEmptyStreamer(1) != 0, "active capture starvation is an underrun");
+}
+
 } // namespace
 
 int main() {
@@ -119,7 +148,8 @@ int main() {
     muLawTests();
     queueTests();
     resamplerTest();
-    std::cout << "packet, mu-law, SPSC queue, and resampler tests passed\n";
+    underrunTest();
+    std::cout << "packet, mu-law, SPSC queue, resampler, and underrun tests passed\n";
     return 0;
   } catch (const std::exception& error) {
     std::cerr << "test failure: " << error.what() << '\n';

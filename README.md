@@ -1,8 +1,8 @@
 # SC Audio Relay
 
-Streams live Linux desktop audio to the Steam Controller's haptics. No audio
-files or playlists.
+Streams live Linux desktop audio to the Steam Controller's haptics. 
 
+Only supports Steam Controller 2026
 Linux + PipeWire only for now. Windows support can come later.
 
 ## Build on Arch
@@ -38,7 +38,7 @@ Or mirror your current output:
 sc-audio-relay --mirror-default --gain 0.5
 ```
 
-Want to capture another output device? Find its PipeWire name and pass it in:
+You can also manually set the mirrored output device to something else, find its PipeWire name and pass it in:
 
 ```bash
 wpctl status -n
@@ -47,8 +47,7 @@ sc-audio-relay --mirror-device "node.name.from.above"
 ```
 
 Press Ctrl+C to stop. If the controller hits a `/dev/hidraw` permission error,
-install the usual Steam/controller udev rules and reconnect it. Don't run the
-app with `sudo` or PipeWire will probably be grumpy.
+install the usual Steam/controller udev rules and reconnect it.
 
 ## Credits
 

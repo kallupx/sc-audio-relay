@@ -85,10 +85,23 @@ void ControllerStreamer::run(std::stop_token stop) {
                           ? std::chrono::nanoseconds{1'875'000}
                           : std::chrono::nanoseconds{3'875'000};
   auto deadline = Clock::now();
+  auto capturedFrames = stats_.capturedFrames.load(std::memory_order_relaxed);
+  auto lastCapture = deadline;
+  bool captureActive = capturedFrames != 0;
 
   while (!stop.stop_requested() && transport_.connected()) {
     std::this_thread::sleep_until(deadline);
     const auto now = Clock::now();
+    const auto captured = stats_.capturedFrames.load(std::memory_order_relaxed);
+    if (captured != capturedFrames) {
+      capturedFrames = captured;
+      lastCapture = now;
+      captureActive = true;
+    } else if (captureActive && now - lastCapture >= std::chrono::milliseconds{100}) {
+      // ponytail: this short window avoids backend-specific idle plumbing; expose
+      // capture activity explicitly if diagnostics need exact stop times.
+      captureActive = false;
+    }
     if (now > deadline + period * 3) {
       ++stats_.latePackets;
       deadline = now;
@@ -110,7 +123,7 @@ void ControllerStreamer::run(std::stop_token stop) {
       sent = transport_.send(buildWirelessPacket(frames));
     }
 
-    if (underrun) {
+    if (underrun && captureActive) {
       ++stats_.underrunPackets;
     }
     if (!sent) {
