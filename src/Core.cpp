@@ -4,73 +4,13 @@
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
-#include <string_view>
 #include <thread>
 
 namespace sho {
-
-bool enqueueGameCue(std::string_view message, CueRing& output) noexcept {
-  constexpr std::string_view prefix = "SC_AUDIO/1 PLAY_CUE ";
-  if (!message.starts_with(prefix)) {
-    return false;
-  }
-  message.remove_prefix(prefix.size());
-
-  const auto nameEnd = message.find(' ');
-  const auto name = message.substr(0, nameEnd);
-  float gain = 1.0F;
-  if (const auto gainAt = message.find("gain="); gainAt != std::string_view::npos) {
-    auto value = message.substr(gainAt + 5);
-    value = value.substr(0, value.find(' '));
-    const auto result = std::from_chars(value.data(), value.data() + value.size(), gain);
-    if (result.ec != std::errc{} || result.ptr != value.data() + value.size() || gain < 0.0F ||
-        gain > 4.0F) {
-      return false;
-    }
-  }
-
-  struct Cue {
-    float startHz;
-    float endHz;
-    float seconds;
-    float amplitude;
-  } cue{};
-  if (name == "TEST") {
-    cue = {120.0F, 120.0F, 0.12F, 0.35F};
-  } else if (name == "PISTOL_FIRE") {
-    cue = {180.0F, 120.0F, 0.055F, 0.5F};
-  } else if (name == "SHOTGUN_FIRE") {
-    cue = {95.0F, 55.0F, 0.16F, 0.8F};
-  } else if (name == "GRAVITY_GUN_PICKUP") {
-    cue = {80.0F, 220.0F, 0.14F, 0.45F};
-  } else if (name == "GRAVITY_GUN_LAUNCH") {
-    cue = {170.0F, 65.0F, 0.18F, 0.65F};
-  } else {
-    return false;
-  }
-
-  constexpr float sampleRate = 48'000.0F;
-  constexpr float twoPi = 6.28318530717958647692F;
-  const auto frames = static_cast<std::size_t>(cue.seconds * sampleRate);
-  float phase = 0.0F;
-  bool queued = false;
-  for (std::size_t index = 0; index < frames; ++index) {
-    const float progress = static_cast<float>(index) / static_cast<float>(frames);
-    const float frequency = cue.startHz + (cue.endHz - cue.startHz) * progress;
-    phase += twoPi * frequency / sampleRate;
-    const float sample = std::sin(phase) * cue.amplitude * gain * (1.0F - progress);
-    if (!output.push({sample, sample})) {
-      break;
-    }
-    queued = true;
-  }
-  return queued;
-}
 
 std::int16_t floatToInt16(float sample) noexcept {
   const auto clipped = std::clamp(sample, -1.0F, 1.0F);
@@ -259,9 +199,9 @@ std::size_t StreamingResampler::inputSpace() const noexcept {
   return inputCapacity - inputFrames_;
 }
 
-AudioPipeline::AudioPipeline(CaptureRing& input, CueRing& cues, OutputRing& output,
+AudioPipeline::AudioPipeline(CaptureRing& input, OutputRing& output,
                              StreamStatistics& stats, float gain)
-    : input_(input), cues_(cues), output_(output), stats_(stats), gain_(gain) {}
+    : input_(input), output_(output), stats_(stats), gain_(gain) {}
 
 AudioPipeline::~AudioPipeline() { stop(); }
 
@@ -304,16 +244,8 @@ void AudioPipeline::run(std::stop_token stop) {
     bool worked = false;
     const auto wanted = std::min(inputFrames.size(), resampler.inputSpace());
     std::size_t count = 0;
-    while (count < wanted) {
-      StereoFrame captured{};
-      StereoFrame cue{};
-      const bool hasCaptured = input_.pop(captured);
-      const bool hasCue = cues_.pop(cue);
-      if (!hasCaptured && !hasCue) {
-        break;
-      }
+    while (count < wanted && input_.pop(inputFrames[count])) {
       auto& frame = inputFrames[count++];
-      frame = {captured.left + cue.left, captured.right + cue.right};
       frame.left = processSample(frame.left, previousInput.left, previousOutput.left);
       frame.right = processSample(frame.right, previousInput.right, previousOutput.right);
     }

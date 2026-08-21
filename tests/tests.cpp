@@ -9,7 +9,6 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
-#include <string>
 #include <string_view>
 #include <thread>
 
@@ -113,25 +112,6 @@ void resamplerTest() {
   check(resampler.inputSpace() == 2048, "resampler reset clears pending input");
 }
 
-void gameCueTest() {
-  sho::CueRing cues;
-  constexpr std::array names{"TEST", "PISTOL_FIRE", "SHOTGUN_FIRE",
-                             "GRAVITY_GUN_PICKUP", "GRAVITY_GUN_LAUNCH"};
-  for (const auto* name : names) {
-    const std::string message = std::string{"SC_AUDIO/1 PLAY_CUE "} + name +
-                                " gain=0.5 pan=0";
-    check(sho::enqueueGameCue(message, cues), "known game cue accepted");
-    check(cues.size() != 0, "game cue produced audio");
-    cues.clear();
-  }
-  check(!sho::enqueueGameCue("SC_AUDIO/2 PLAY_CUE TEST gain=1 pan=0", cues),
-        "unknown protocol rejected");
-  check(!sho::enqueueGameCue("SC_AUDIO/1 PLAY_CUE UNKNOWN gain=1 pan=0", cues),
-        "unknown cue rejected");
-  check(!sho::enqueueGameCue("SC_AUDIO/1 PLAY_CUE TEST gain=99 pan=0", cues),
-        "invalid gain rejected");
-}
-
 class FakeController final : public sho::IControllerTransport {
 public:
   bool configure(sho::ControllerLink) override { return true; }
@@ -168,9 +148,8 @@ int main() {
     muLawTests();
     queueTests();
     resamplerTest();
-    gameCueTest();
     underrunTest();
-    std::cout << "packet, mu-law, SPSC queue, resampler, game cue, and underrun tests passed\n";
+    std::cout << "packet, mu-law, SPSC queue, resampler, and underrun tests passed\n";
     return 0;
   } catch (const std::exception& error) {
     std::cerr << "test failure: " << error.what() << '\n';
