@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <span>
+#include <string_view>
 #include <thread>
 
 struct SRC_STATE_tag;
@@ -14,6 +15,9 @@ struct SRC_STATE_tag;
 namespace sho {
 
 using CaptureRing = SpscRing<StereoFrame, 16384>;
+using CueRing = SpscRing<StereoFrame, 16384>;
+
+bool enqueueGameCue(std::string_view message, CueRing& output) noexcept;
 
 class StreamingResampler {
 public:
@@ -36,7 +40,8 @@ private:
 
 class AudioPipeline {
 public:
-  AudioPipeline(CaptureRing& input, OutputRing& output, StreamStatistics& stats, float gain);
+  AudioPipeline(CaptureRing& input, CueRing& cues, OutputRing& output,
+                StreamStatistics& stats, float gain);
   ~AudioPipeline();
   void start();
   void stop();
@@ -45,6 +50,7 @@ private:
   void run(std::stop_token stop);
 
   CaptureRing& input_;
+  CueRing& cues_;
   OutputRing& output_;
   StreamStatistics& stats_;
   float gain_;

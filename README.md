@@ -32,6 +32,11 @@ sc-audio-relay --virtual-output --gain 0.5
 Pick **Steam Controller Haptics** as the app's output. It exists while SC Audio
 Relay is running and sends audio to the controller, not your speakers.
 
+The relay also listens for versioned HL2 cue events on UDP loopback port 28491.
+With the controller-audio mod loaded, enter `sc_audio_test` in the Source console
+to verify the path. Use `--cue-port PORT` and the matching Source
+`sc_audio_port` cvar if the default port is unavailable.
+
 Or mirror your current output:
 
 ```bash

@@ -2,7 +2,14 @@
 #include "sho/PipeWireCapture.hpp"
 #include "sho/TritonTransport.hpp"
 
+#include <arpa/inet.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include <array>
 #include <atomic>
+#include <cerrno>
 #include <charconv>
 #include <chrono>
 #include <csignal>
@@ -12,6 +19,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 
 namespace {
@@ -25,6 +33,7 @@ struct Options {
   sho::PipeWireMode pipeWireMode{sho::PipeWireMode::Mirror};
   sho::ControllerPreference controller{sho::ControllerPreference::Auto};
   float gain{0.5F};
+  std::uint16_t cuePort{28491};
   bool stats{true};
   bool help{};
 };
@@ -32,6 +41,7 @@ struct Options {
 constexpr std::string_view usage =
     "Usage: sc-audio-relay [--mirror-default | --mirror-device NAME | --virtual-output]\n"
     "                            [--gain 0..4] [--controller auto|wired|wireless]\n"
+    "                            [--cue-port 1..65535]\n"
     "                            [--stats | --no-stats]\n";
 
 std::string_view nextValue(int& index, int argc, char** argv, std::string_view option) {
@@ -80,6 +90,15 @@ Options parseArgs(int argc, char** argv) {
       } else {
         throw std::runtime_error("--controller must be auto, wired, or wireless");
       }
+    } else if (arg == "--cue-port") {
+      const auto value = nextValue(index, argc, argv, arg);
+      unsigned port = 0;
+      const auto result = std::from_chars(value.data(), value.data() + value.size(), port);
+      if (result.ec != std::errc{} || result.ptr != value.data() + value.size() || port == 0 ||
+          port > 65535) {
+        throw std::runtime_error("--cue-port must be a number from 1 to 65535");
+      }
+      options.cuePort = static_cast<std::uint16_t>(port);
     } else if (arg == "--stats") {
       options.stats = true;
     } else if (arg == "--no-stats") {
@@ -97,6 +116,63 @@ Options parseArgs(int argc, char** argv) {
   return options;
 }
 
+class GameCueReceiver {
+public:
+  GameCueReceiver(sho::CueRing& output, std::uint16_t port) : output_(output), port_(port) {}
+  ~GameCueReceiver() { stop(); }
+
+  void start() {
+    socket_ = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+    if (socket_ < 0) {
+      throw std::system_error(errno, std::generic_category(), "game cue socket");
+    }
+
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port_);
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (::bind(socket_, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) < 0) {
+      const int error = errno;
+      ::close(socket_);
+      socket_ = -1;
+      throw std::system_error(error, std::generic_category(), "game cue bind");
+    }
+
+    thread_ = std::jthread([this](std::stop_token stop) {
+      std::array<char, 256> message{};
+      pollfd event{socket_, POLLIN, 0};
+      while (!stop.stop_requested()) {
+        const int ready = ::poll(&event, 1, 100);
+        if (ready <= 0) {
+          continue;
+        }
+        const auto bytes = ::recv(socket_, message.data(), message.size(), 0);
+        if (bytes > 0) {
+          sho::enqueueGameCue(
+              std::string_view{message.data(), static_cast<std::size_t>(bytes)}, output_);
+        }
+      }
+    });
+  }
+
+  void stop() noexcept {
+    if (thread_.joinable()) {
+      thread_.request_stop();
+      thread_.join();
+    }
+    if (socket_ >= 0) {
+      ::close(socket_);
+      socket_ = -1;
+    }
+  }
+
+private:
+  sho::CueRing& output_;
+  std::uint16_t port_;
+  int socket_{-1};
+  std::jthread thread_;
+};
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -112,6 +188,7 @@ int main(int argc, char** argv) {
     std::signal(SIGTERM, handleSignal);
 
     sho::CaptureRing capturedAudio;
+    sho::CueRing gameCues;
     sho::OutputRing controllerAudio;
     sho::StreamStatistics stats;
     sho::TritonTransport controller(options.controller);
@@ -120,12 +197,14 @@ int main(int argc, char** argv) {
       throw std::runtime_error("controller: PCM setup failed");
     }
 
-    sho::AudioPipeline pipeline(capturedAudio, controllerAudio, stats, options.gain);
+    sho::AudioPipeline pipeline(capturedAudio, gameCues, controllerAudio, stats, options.gain);
     sho::PipeWireCapture capture(capturedAudio, stats, options.pipeWireMode, options.device);
     sho::ControllerStreamer streamer(controllerAudio, controller, link, stats);
+    GameCueReceiver cueReceiver(gameCues, options.cuePort);
     pipeline.start();
     capture.start();
     streamer.start();
+    cueReceiver.start();
 
     std::cout << "Streaming "
               << (options.pipeWireMode == sho::PipeWireMode::VirtualOutput
@@ -137,6 +216,7 @@ int main(int argc, char** argv) {
               << (options.pipeWireMode == sho::PipeWireMode::VirtualOutput
                       ? "route an app to it, then press Ctrl+C to stop.\n"
                       : "press Ctrl+C to stop.\n");
+    std::cout << "Listening for HL2 cues on 127.0.0.1:" << options.cuePort << ".\n";
 
     std::uint64_t previousCaptured = 0;
     std::uint64_t previousResampled = 0;
@@ -156,6 +236,7 @@ int main(int argc, char** argv) {
       previousResampled = resampled;
     }
 
+    cueReceiver.stop();
     capture.stop();
     pipeline.stop();
     streamer.stop();
